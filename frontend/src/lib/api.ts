@@ -1,4 +1,14 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+function getApiBase(): string {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host !== "localhost" && host !== "127.0.0.1") {
+      return "https://cloud-labedu.vercel.app/api/v1";
+    }
+  }
+  return process.env.NODE_ENV === "production"
+    ? "https://cloud-labedu.vercel.app/api/v1"
+    : "http://localhost:8000/api/v1";
+}
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -16,7 +26,7 @@ export function setToken(token: string | null) {
 
 export async function apiRequest<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -30,7 +40,7 @@ export async function apiRequest<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     ...options,
     headers,
   });
@@ -41,14 +51,19 @@ export async function apiRequest<T>(
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.detail || `Terjadi kesalahan pada server (${res.status})`);
+    throw new Error(
+      data.detail || `Terjadi kesalahan pada server (${res.status})`,
+    );
   }
   return data as T;
 }
 
-export async function downloadProtectedFile(path: string, fallbackName: string) {
+export async function downloadProtectedFile(
+  path: string,
+  fallbackName: string,
+) {
   const token = getToken();
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) {
