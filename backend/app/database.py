@@ -6,11 +6,15 @@ from app.config import settings
 
 logger = logging.getLogger("cloudlab.db")
 
+db_url = settings.DATABASE_URL.strip()
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
 engine = create_engine(
-    settings.DATABASE_URL,
+    db_url,
     pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
+    pool_size=2,
+    max_overflow=3,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -25,7 +29,8 @@ def get_db():
         db.close()
 
 
-def wait_for_db(max_retries: int = 15, delay: float = 2.0):
+def wait_for_db(max_retries: int = 3, delay: float = 0.5):
+    last_err = None
     for attempt in range(1, max_retries + 1):
         try:
             with engine.connect() as conn:
@@ -33,8 +38,7 @@ def wait_for_db(max_retries: int = 15, delay: float = 2.0):
             logger.info("Connected to PostgreSQL database successfully.")
             return
         except Exception as exc:
-            logger.warning(
-                f"Database not ready (attempt {attempt}/{max_retries}): {exc}"
-            )
+            last_err = exc
+            logger.warning(f"Database attempt {attempt}/{max_retries} failed: {exc}")
             time.sleep(delay)
-    raise RuntimeError("Could not connect to PostgreSQL after multiple retries.")
+    raise RuntimeError(f"Database connection failed: {last_err}")
