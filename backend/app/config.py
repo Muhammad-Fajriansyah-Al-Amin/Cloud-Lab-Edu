@@ -18,11 +18,13 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
         os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")
     )
-    UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "/app/uploads")
-    MAX_UPLOAD_MB: int = int(os.getenv("MAX_UPLOAD_MB", "10"))
-    CORS_ORIGINS: str = os.getenv(
-        "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+    UPLOAD_DIR: str = (
+        "/tmp/uploads"
+        if os.getenv("VERCEL")
+        else os.getenv("UPLOAD_DIR", "/app/uploads")
     )
+    MAX_UPLOAD_MB: int = int(os.getenv("MAX_UPLOAD_MB", "10"))
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "*")
 
 
 settings = Settings()
