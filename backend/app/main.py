@@ -2,14 +2,14 @@ import time
 import logging
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import Base, engine, SessionLocal, wait_for_db, get_db
-from app.seed import seed_initial_data, log_event
+from app.seed import seed_initial_data
 from app.routers import auth, classes, modules, submissions, admin
 
 logging.basicConfig(
@@ -18,17 +18,26 @@ logging.basicConfig(
 )
 
 START_TIME = time.time()
+_DB_INITIALIZED = False
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+def init_db_once():
+    global _DB_INITIALIZED
+    if _DB_INITIALIZED:
+        return
     wait_for_db()
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         seed_initial_data(db)
+        _DB_INITIALIZED = True
     finally:
         db.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db_once()
     yield
 
 
@@ -42,11 +51,19 @@ app = FastAPI(
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins or ["*"],
+    allow_origins=["*"] if "*" in origins else (origins or ["*"]),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def ensure_db_middleware(request: Request, call_next):
+    if not _DB_INITIALIZED:
+        init_db_once()
+    return await call_next(request)
+
 
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(classes.router, prefix=settings.API_V1_PREFIX)
